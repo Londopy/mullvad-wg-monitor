@@ -104,6 +104,7 @@ class InstallerApp(tk.Tk):
         self._python_ver   = None
         self._installed_ok = set()
         self._install_dir  = tk.StringVar(value=str(Path.home() / "MullvadPingTool"))
+        self._source_var   = tk.StringVar(value="github")
 
         self._apply_style()
         self._build_ui()
@@ -129,7 +130,7 @@ class InstallerApp(tk.Tk):
         hdr.pack(fill=tk.X)
         tk.Label(hdr, text="  MULLVAD  LAX PING TOOL",
                  font=("Courier New", 16, "bold"), fg=ACCENT, bg=BG2).pack(side=tk.LEFT, padx=20)
-        tk.Label(hdr, text="Installer  v1.0",
+        tk.Label(hdr, text="Installer  v2.0",
                  font=MONO, fg=FG_DIM, bg=BG2).pack(side=tk.RIGHT, padx=20)
 
         # Body uses a left sidebar + right panel layout
@@ -344,15 +345,27 @@ class InstallerApp(tk.Tk):
         # Source selection
         tk.Label(f, text="Source for mullvad_ping.py:",
                  font=UI_SM, fg=FG_DIM, bg=BG).pack(anchor="w", pady=(10, 4))
-        self._source_var = tk.StringVar(value="local")
-        src_frame = tk.Frame(f, bg=BG)
-        src_frame.pack(fill=tk.X)
-        for val, lbl in [("local","Same folder as this installer"),
-                         ("github","Download latest from GitHub")]:
-            tk.Radiobutton(src_frame, variable=self._source_var, value=val,
-                           text=lbl, bg=BG, fg=FG, activebackground=BG,
-                           selectcolor=BG3, font=UI_SM,
-                           highlightthickness=0).pack(anchor="w")
+
+        # GitHub option (default — highlighted)
+        gh_card = tk.Frame(f, bg=BG2, padx=12, pady=8)
+        gh_card.pack(fill=tk.X, pady=(0, 4))
+        tk.Radiobutton(gh_card, variable=self._source_var, value="github",
+                       text="Download latest from GitHub  (recommended)",
+                       bg=BG2, fg=ACCENT, activebackground=BG2,
+                       selectcolor=BG3, font=('Segoe UI', 9, 'bold'),
+                       highlightthickness=0).pack(anchor="w")
+        tk.Label(gh_card,
+                 text=f"  {MAIN_SCRIPT_GITHUB}",
+                 font=('Courier New', 8), fg=FG_DIM, bg=BG2).pack(anchor="w")
+
+        # Local fallback
+        local_card = tk.Frame(f, bg=BG, padx=2, pady=4)
+        local_card.pack(fill=tk.X)
+        tk.Radiobutton(local_card, variable=self._source_var, value="local",
+                       text="Use local copy  (mullvad_ping.py next to this installer)",
+                       bg=BG, fg=FG_DIM, activebackground=BG,
+                       selectcolor=BG3, font=UI_SM,
+                       highlightthickness=0).pack(anchor="w")
 
     # ── TAB: LOG ───────────────────────────────────────────────────────────────
     def _build_tab_log(self):
@@ -559,13 +572,19 @@ class InstallerApp(tk.Tk):
 
             if self._source_var.get() == "github":
                 self._set_status("Downloading mullvad_ping.py from GitHub…")
-                self._log_write("\n── Downloading from GitHub ────────────", "info")
+                self._log_write("\n── Downloading mullvad_ping.py from GitHub ──", "info")
+                self._log_write(f"  URL: {MAIN_SCRIPT_GITHUB}", "dim")
                 try:
-                    urllib.request.urlretrieve(MAIN_SCRIPT_GITHUB, dest)
-                    self._log_write(f"  Downloaded to {dest}", "ok")
+                    req = urllib.request.Request(
+                        MAIN_SCRIPT_GITHUB,
+                        headers={"User-Agent": "MullvadPingInstaller/2.0"})
+                    with urllib.request.urlopen(req, timeout=30) as resp:
+                        data = resp.read()
+                    dest.write_bytes(data)
+                    self._log_write(f"  ✓  Downloaded {len(data):,} bytes to {dest}", "ok")
                 except Exception as e:
                     self._log_write(f"  Download failed: {e}", "err")
-                    self._log_write("  Falling back to local copy…", "warn")
+                    self._log_write("  Falling back to local copy next to installer…", "warn")
                     self._copy_local(dest)
             else:
                 self._copy_local(dest)
